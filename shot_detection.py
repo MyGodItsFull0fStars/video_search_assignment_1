@@ -2,16 +2,31 @@ import cv2
 import numpy as np
 from copy import deepcopy
 
+from utils import manhattan_distance
+from utils import time_decorator
+
 
 def _get_histogram_bin(frame) -> list:
     return np.histogram(frame.ravel(), 64, [0, 256])[0]
 
 
+def _get_opencv_histogram_bin(frame) -> list:
+    # temp_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    h, s, v = cv2.split(frame)
+    hist_h = cv2.calcHist([h], [0], None, [64], [0, 256])
+    hist_s = cv2.calcHist([s], [0], None, [64], [0, 256])
+    hist_v = cv2.calcHist([v], [0], None, [64], [0, 256])
+    weight: float = 0.33
+    histogram = weight * (hist_h + hist_s + hist_v)
+
+    return histogram
+
+
 class FrameData:
 
     def __init__(self, frame=None):
-        self.frame = deepcopy(frame)
-        self.histogram_bin = _get_histogram_bin(self.frame)
+        self.frame = frame
+        self.histogram_bin = _get_opencv_histogram_bin(self.frame)
 
 
 FrameDataList = [FrameData]
@@ -32,6 +47,7 @@ class ShotDetection:
         self.keyframe_detection(video_frame_list)
         # self.detected_shots = [elem.frame for elem in video_frame_list]
 
+    @time_decorator
     def transform_video_to_frame_data_list(self, video_path: str = None) -> FrameDataList:
         print('[Transform Video To Frama Data List]')
         if video_path is None or video_path == '':
@@ -40,12 +56,16 @@ class ShotDetection:
 
         video_capture = cv2.VideoCapture(video_path)
 
+        count = 0
+
         while video_capture.isOpened():
+        # while video_capture.isOpened() and count < 1000:
             valid_frame, frame = video_capture.read()
             if valid_frame:
                 frames.append(FrameData(frame))
             else:
                 break
+            count += 1
 
         video_capture.release()
 
@@ -53,8 +73,8 @@ class ShotDetection:
 
     def keyframe_detection(self, video_frame_list: FrameDataList):
         print('[Detecting Keyframes]')
-        T_D: int = 150000
-        T_H: int = 700000
+        T_D: int = 200000
+        T_H: int = 800000
 
         first_frame: int = 0
         last_frame: int = 0
@@ -66,39 +86,24 @@ class ShotDetection:
             right_histogram = video_frame_list[right_idx].histogram_bin
             last_frame = right_idx
 
-            md = self.manhattan_distance(left_histogram, right_histogram)
+            md = manhattan_distance(left_histogram, right_histogram)
             cumulative_threshold += md
 
             if md > T_D:
-                detected_shot_idx = (first_frame + last_frame) // 2
-                print('Adding shot {} with T_D'.format(detected_shot_idx))
-                self.detected_shots.append(video_frame_list[detected_shot_idx])
+                detected_shot_idx = first_frame + (last_frame - first_frame) // 2
+                self.detected_shots.append(video_frame_list[detected_shot_idx].frame)
                 first_frame = right_idx
                 cumulative_threshold = 0
                 continue
 
             if cumulative_threshold > T_H:
-                detected_shot_idx = (first_frame + last_frame) // 2
-                print('Adding shot {} with T_H'.format(detected_shot_idx))
-                self.detected_shots.append(video_frame_list[detected_shot_idx])
+                detected_shot_idx = first_frame + (last_frame - first_frame) // 2
+                self.detected_shots.append(video_frame_list[detected_shot_idx].frame)
                 first_frame = right_idx
                 cumulative_threshold = 0
                 continue
 
             # print('Manhattan Distance of frames ({}/{}) is = {}'.format(left_idx, right_idx, md))
-
-    def manhattan_distance(self, hist_left: np.ndarray, hist_right: np.ndarray) -> int:
-
-        sum: int = 0
-        for i in range(len(hist_left)):
-            sum += abs(hist_left[i] - hist_right[i])
-        return sum
-
-    def euclidian_distance(self, hist_left: np.ndarray, hist_right: np.ndarray) -> float:
-        sum: float = 0
-        for i in range(len(hist_left)):
-            sum += np.sqrt(np.square(hist_left[i] - hist_right[i]))
-        return sum
 
     def __delete__(self, instance):
         cv2.destroyAllWindows()
