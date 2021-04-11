@@ -1,0 +1,9 @@
+name: video_search_assignment_1
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.8
+  - opencv
+  - matplotlib
+prefix: /Users/christianbauer/opt/anaconda3/envs/video_search_assignment_1
