@@ -11,7 +11,12 @@ To install this environment, please enter the following command in the root dire
 
 This should install the dependencies needed for this assignment.
 
+Afterwards, it should be possible to run the code from the project root using the command: `python main.py`.
+This will execute the shot detection and saves the detected shots in a folder called `detected_shots`.
+
 Note: OpenCV version `4.5.1.48` was used for this project, but was not specified in the `.yml` file and all OpenCV versions >= `4.2 should probably work just fine.
+
+
 
 ## Content
 
